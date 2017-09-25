@@ -5,6 +5,9 @@
 #include "KVManager.hpp"
 #include <algorithm>
 
+const uint16_t MORE_PAGES_MASK = 1 << 15;
+const uint16_t SIZE_MASK = MORE_PAGES_MASK - 1;
+
 struct Page {
     PageHeader header;
 
@@ -25,9 +28,13 @@ struct Page {
 Entry_t KVManager::genNewEntry(uint64_t hVal) {
     //use top 3 bits to find segment
     std::lock_guard<std::mutex>lock(entryMapMutex);
-    uint16_t segNo = (uint16_t) (hVal >> 61 & 0b111);
-    Entry_t newEntry{ segNo, mCurrGenPageNo[segNo]++, DEFAULT };
+    uint16_t segNo = (uint16_t) ( (hVal >> 61) & 0b111);
+    Entry_t newEntry;
+    newEntry.segment = segNo;
+    newEntry.startPage = mCurrGenPageNo[segNo]++;
+    newEntry.flags = DEFAULT;
     entryMap.insert(std::make_pair(hVal, newEntry));
+    return std::move(newEntry);
 }
 
 Entry_t KVManager::entryLookup(uint64_t hVal) {
@@ -38,11 +45,11 @@ Entry_t KVManager::entryLookup(uint64_t hVal) {
         return it->second;
     }
     else {
-        return Entry_t { 0, 0, INVALID};
+        return std::move(Entry_t());
     }
 }
 
-std::string KVManager::get(std::string key) {
+std::string KVManager::get(const std::string &key) {
     using namespace std::string_literals;
 
     std::hash<std::string> hash;
@@ -55,6 +62,12 @@ std::string KVManager::get(std::string key) {
     //Page p = bufferManager.readPin(pi.segment, pi.startPage)
     //Page: [ Header: [NextPid, NumEntries, startOFfset] ksize1, vsize1 ksize ... etc]
     //
+
+    const Segment& segment = bm.pinPage(pi, false, false);
+    char * page = (char *) segment.data;
+    if(page == NULL_PAGE)
+        return ""s;
+
     uint64_t currPid = pi.startPage;
     uint16_t currKeySize = 0;
     uint16_t currValueSize = 0;
@@ -62,10 +75,50 @@ std::string KVManager::get(std::string key) {
     auto stringBegin = key.cbegin();
     auto stringEnd = key.cend();
     auto stringCurr = stringBegin;
-    uint16_t currEntry = -1;
+    uint16_t currEntry = 0;
 
-    char* page;
-    PageHeader ph;
+    PageHeader ph = *((PageHeader * ) page);
+    //no entries here
+    if(ph.numEntries == 0)
+        return ""s;
+
+    bool match = true;
+    uint16_t * sizeTable = (uint16_t *)(page + sizeof(PageHeader));
+
+    currKeySize = sizeTable[2*currEntry];
+    bool moreKeyPages = (bool) (currKeySize & MORE_PAGES_MASK);
+    currKeySize &= SIZE_MASK;
+
+    currValueSize = sizeTable[2*currEntry + 1];
+    bool moreValuePages = (bool) (currValueSize & MORE_PAGES_MASK);
+    currValueSize &= SIZE_MASK;
+
+    if( (stringEnd - stringCurr) < currKeySize)
+    {
+        //currKey is longer then the key we are looking for, skip it
+    }
+    else
+    {
+
+    std::reverse_iterator<char *> rBegin(page + PAGE_SIZE);
+    std::reverse_iterator<char *> rEnd = rBegin + currKeySize;
+
+    match &= std::equal(stringCurr,stringCurr + currKeySize, rBegin, rEnd);
+
+    if(moreKeyPages)
+    {
+        stringCurr = stringCurr + currKeySize;
+    }
+    else {
+        if (match)
+        {
+            //return getVal(page, currValueSize, currKeySize);
+        }
+    }
+
+    }
+
+
 
     do {
         std::reverse_iterator<char *> rBegin(page + PAGE_SIZE);
@@ -95,10 +148,10 @@ std::string KVManager::get(std::string key) {
 
     //handler.getValue;
 
-    return std::__cxx11::string();
+    return std::string();
 }
 
-bool KVManager::put(std::string key, std::string value) {
+bool KVManager::put(const std::string &key, const std::string &value) {
 
     std::hash<std::string> hash;
     uint64_t hVal = hash(key);
@@ -115,7 +168,7 @@ bool KVManager::put(std::string key, std::string value) {
     return false;
 }
 
-bool KVManager::remove(std::string key) {
+bool KVManager::remove(const std::string &key) {
 
     std::hash<std::string> hash;
     uint64_t hVal = hash(key);
