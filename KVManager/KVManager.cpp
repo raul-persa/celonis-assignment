@@ -8,23 +8,6 @@
 const uint16_t MORE_PAGES_MASK = 1 << 15;
 const uint16_t SIZE_MASK = MORE_PAGES_MASK - 1;
 
-struct Page {
-    PageHeader header;
-
-    char* getEnd(){
-        return (char*) this + PAGE_SIZE;
-    }
-
-
-    uint16_t getKeySize(uint16_t id) {
-
-    }
-
-    uint16_t getValSize(uint16_t id) {
-
-    }
-};
-
 Entry_t KVManager::genNewEntry(uint64_t hVal) {
     //use top 3 bits to find segment
     std::lock_guard<std::mutex>lock(entryMapMutex);

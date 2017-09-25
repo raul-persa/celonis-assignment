@@ -55,6 +55,10 @@ public:
         }
         else {
             memset(seg.data, 0, PAGE_SIZE);
+            PageHeader& header = *((PageHeader *) seg.data);
+            header.nextPid = seg.entry.startPage;
+            header.numEntries = 0;
+            header.startOffset = 0;
             seg.entry.flags |= NEW;
         }
     }

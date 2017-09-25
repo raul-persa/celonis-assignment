@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.6)
 project(assignment)
 
-find_library(ZMQ_LIB zmq)
-find_package (Threads)
+find_library(ZMQ_LIB zmq REQUIRED)
+#find_package(libzmq)
+find_package (Threads REQUIRED)
 
 find_package( Boost REQUIRED COMPONENTS thread )
-include_directories( ${Boost_INCLUDE_DIRS} )
+include_directories( ${Boost_INCLUDE_DIRS} ${ZeroMQ_INCLUDE_DIR} )
 
 set(CMAKE_CXX_STANDARD 14)
 
