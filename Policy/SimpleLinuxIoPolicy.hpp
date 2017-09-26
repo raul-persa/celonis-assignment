@@ -54,6 +54,7 @@ public:
             }
         }
         else {
+            //initialize a fresh new page
             memset(seg.data, 0, PAGE_SIZE);
             PageHeader& header = *((PageHeader *) seg.data);
             header.nextPid = seg.entry.startPage;

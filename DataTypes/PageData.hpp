@@ -21,41 +21,41 @@ struct Entry_t {
     }
 
     Entry_t(const Entry_t &other)
-            : segment(other.segment), startPage(other.startPage), flags(other.flags) {
+            : segment(other.segment), startPage(other.startPage), flags(other.flags.load()) {
     }
 
     Entry_t &operator=(const Entry_t &other) {
 
         segment = other.segment;
         startPage = other.startPage;
-        flags = other.flags;
+        flags.store(other.flags.load());
     }
 
     Entry_t(Entry_t &&other)
-            : segment(other.segment), startPage(other.startPage), flags(other.flags) {
+            : segment(other.segment), startPage(other.startPage), flags(other.flags.load()) {
         other.invalidate();
     }
 
 
-    Entry_t &operator==(Entry_t &&other) {
+    Entry_t &operator=(Entry_t &&other) {
         segment = other.segment;
         startPage = other.startPage;
-        flags = other.flags;
+        flags.store(other.flags.load());
         other.invalidate();
     }
 
     bool operator==(const Entry_t &other) const {
-        return segment == other.segment && startPage == other.startPage && flags == other.flags;
+        return segment == other.segment && startPage == other.startPage;
     }
 
     bool operator!=(const Entry_t &other) const {
-        return segment != other.segment && startPage != other.startPage && flags != other.flags;
+        return segment != other.segment && startPage != other.startPage;
     }
 
 
     uint16_t segment;
     uint64_t startPage;
-    uint16_t flags;
+    std::atomic<uint16_t> flags;
 
 private:
     void invalidate() {
@@ -70,7 +70,6 @@ struct EntryHasher {
         std::size_t seed = 0;
         boost::hash_combine(seed, e.segment);
         boost::hash_combine(seed, e.startPage);
-        boost::hash_combine(seed, e.flags);
         return seed;
     }
 };
