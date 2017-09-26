@@ -5,7 +5,7 @@ A (as of yet still under development) key-value store with Multithreading and mu
 Network and internal communication is handled via [**zeromq**](http://zeromq.org/). It the application also uses [**boost**](http://www.boost.org/).
 
 ##### Current network message formats:
-* **PUT** 		:   \[\'c\', strlen(key) {binary ull}, key, value\]
+* **PUT** 		:   \[\'p\', strlen(key) {binary ull}, key, value\]
 * **GET** 		:   \[\'g\', key\]
 * **DELETE** 	: 	\[\'d\', key\]
 
