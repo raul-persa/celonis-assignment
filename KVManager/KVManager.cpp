@@ -215,7 +215,7 @@ std::string KVManager::get(const std::string &key) {
     }
     else {
         std::stringstream ss;
-        readString(segment, pageRecordId, ss);
+        readStringAndUnpin(segment, pageRecordId, ss);
         return ss.str();
     }
 }
@@ -229,9 +229,24 @@ bool KVManager::put(const std::string &key, const std::string &value) {
     if (!entryLookup(hVal, entry))
         entry = genNewEntry(hVal);
 
-    //Page p = bufferManager.writePin(pi.fileSegment, pi.pageId)
-    //Page: [ Header: [NextPid, NumEntries, startOFfset] ksize1, vsize1 ksize ... etc]
+    Segment *segment = &bm.pinPage(entry, false, true);
+    uint16_t recordId = crawlToKey(segment, key, true);
 
+    char * page = (char*) segment->data;
+
+    assert(page != NULL_PAGE);
+
+    PageHeader & header = getHeader(page);
+
+    if( header.nextPid == segment->entry.pageId && recordId == header.numEntries - uint16_t(1) )
+    {
+        return writeRecordAndUnpin(segment, recordId, key, value);
+    }
+    else
+    {
+        //not last page, put failed
+        return false;
+    }
 
     return false;
 }
@@ -245,16 +260,35 @@ bool KVManager::remove(const std::string &key) {
     if (!entryLookup(hVal, entry))
         return false;
 
+    Segment *segment = &bm.pinPage(entry, false, true);
+    uint16_t recordId = crawlToKey(segment, key, true);
+
+    char * page = (char*) segment->data;
+
+    assert(page != NULL_PAGE);
+
+    PageHeader & header = getHeader(page);
+
+    if( header.nextPid == segment->entry.pageId && recordId == header.numEntries - uint16_t(1) )
+    {
+        return removeKeyAndUnpin(segment, recordId, key);
+    }
+    else
+    {
+        //not last page, put failed
+        return false;
+    }
 
     //Page p = bufferManager.writePin(pi.fileSegment, pi.pageId)
     //Page: [ Header: [NextPid, NumEntries, startOFfset] ksize1, vsize1 ksize ... etc]
     return false;
 }
 
-void KVManager::readString(Segment *segment, uint16_t recordId, std::stringstream &ss) {
+void KVManager::readStringAndUnpin(Segment *segment, uint16_t recordId, std::stringstream &ss) {
     char* page = (char*) segment->data;
     if (page == NULL_PAGE)
     {
+        bm.unpinPage(*segment, false);
         return;
     }
 
@@ -263,14 +297,15 @@ void KVManager::readString(Segment *segment, uint16_t recordId, std::stringstrea
     if(header->numEntries < recordId)
     {
         //nnothing to read
-        return ;
+        bm.unpinPage(*segment, false);
+        return;
     }
 
     uint64_t currentSize = 0;
 
-    if(!hasEntry(page, recordId))
+    if(!hasEntry(page, recordId + uint16_t(1)))
     {
-        //value starts at next page
+        //value starts at next page, go to next page
         assert(header->nextPid != segment->entry.pageId);
         Entry_t entry;
         entry.pageId = header->nextPid;
@@ -281,15 +316,75 @@ void KVManager::readString(Segment *segment, uint16_t recordId, std::stringstrea
         page = (char*) segment->data;
         header = &getHeader(page);
         recordId = 0;
+        assert(header->numEntries > 1);
     }
 
-    bool done = false;
+    uint16_t currentOffset = header->startOffset;
 
-//    do
-//    {
-//        ss.put()
-//        if ()
-//    } while (header.nextPid != segment->entry.pageId || done);
+    for(uint16_t i = 0 ; i < recordId; ++i)
+    {
+        currentOffset += getEntrySizeArray(page)[i];
+    }
 
+    std::reverse_iterator<char *> rBegin(dataEnd(page) - currentOffset);
+    std::reverse_iterator<char *> rEnd = rBegin + getEntrySizeArray(page)[recordId];
 
+    ss << std::string(rBegin, rEnd);
+
+    if ( hasEntry(page, recordId + uint16_t(1)))
+    {
+        //
+    }
+    else
+    {
+        while(true)
+        {
+            if(hasEntry(page, 0) ||  header->nextPid == segment->entry.pageId)
+                break;
+
+            assert(header->nextPid != segment->entry.pageId);
+            Entry_t entry;
+            entry.pageId = header->nextPid;
+            entry.fileSegment = segment->entry.fileSegment;
+            Segment * newSegment = &bm.pinPage(entry, false);
+            bm.unpinPage(*segment, false);
+            segment = newSegment;
+            page = (char*) segment->data;
+            header = &getHeader(page);
+            assert(header->numEntries > 1);
+
+            std::reverse_iterator<char *> rBegin(dataEnd(page));
+            std::reverse_iterator<char *> rEnd = rBegin + header->startOffset;
+
+            ss << std::string(rBegin, rEnd);
+
+        }
+    }
+
+    bm.unpinPage(*segment, false);
+}
+
+bool
+KVManager::writeRecordAndUnpin(Segment *segment, uint16_t recordId, const std::string &key, const std::string &value) {
+    char* page = (char*) segment->data;
+    if (page == NULL_PAGE)
+    {
+        bm.unpinPage(*segment, true);
+        return false;
+    }
+
+    PageHeader & header = getHeader(page);
+
+    auto keyIt = key.begin();
+    auto valueIt = value.begin();
+
+    return false;
+    //todo: continue
+}
+
+bool KVManager::removeKeyAndUnpin(Segment *segment, uint16_t recordId, const std::string &key) {
+
+    bm.unpinPage(*segment, true);
+    //todo: implement
+    return false;
 }

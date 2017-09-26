@@ -19,9 +19,9 @@ private:
     std::string exText;
 };
 
-class FIFOEvictionPolicy {
+class RoundRobinEvictionPolicy {
 public:
-    FIFOEvictionPolicy(uint64_t buffSize);
+    RoundRobinEvictionPolicy(uint64_t buffSize);
 
     void setBuffer(Segment* buffer) {
         this->buffer = buffer;
