@@ -17,20 +17,20 @@ public:
 
     bool exists(const Entry_t& entry)
     {
-        auto it = segments.find(entry.segment);
+        auto it = segments.find(entry.fileSegment);
         if ( it == segments.end() ) {
-            int file = open(std::to_string(entry.segment).c_str(), O_CREAT | O_RDWR,
+            int file = open(std::to_string(entry.fileSegment).c_str(), O_CREAT | O_RDWR,
                             S_IRUSR | S_IWUSR);
             if(file == -1) {
                 std::cerr << "cannot open file: " << strerror(errno)
                 << std::endl;
             }
-            segments.insert(std::make_pair(entry.segment, file));
+            segments.insert(std::make_pair(entry.fileSegment, file));
             return false;
         }
         else {
             size_t size = getFileSize(it->second);
-            if((entry.startPage * PAGE_SIZE ) > size)
+            if((entry.pageId * PAGE_SIZE ) > size)
             {
                 return false;
             }
@@ -39,16 +39,16 @@ public:
 
     void load(Segment& seg)
     {
-        auto it = segments.find(seg.entry.segment);
+        auto it = segments.find(seg.entry.fileSegment);
 
         size_t fileSize = getFileSize(it->second);
 
         bool isInRange = fileSize
-                         >= (seg.entry.startPage + 1) * (PAGE_SIZE ) - 1;
+                         >= (seg.entry.pageId + 1) * (PAGE_SIZE ) - 1;
 
         if(isInRange) {
             if (pread(it->second, seg.data, PAGE_SIZE,
-                      seg.entry.startPage * PAGE_SIZE) == -1) {
+                      seg.entry.pageId * PAGE_SIZE) == -1) {
                 std::cerr << "cannot read page data: " << strerror(errno)
                 << std::endl;
             }
@@ -57,15 +57,15 @@ public:
             //initialize a fresh new page
             memset(seg.data, 0, PAGE_SIZE);
             PageHeader& header = *((PageHeader *) seg.data);
-            header.nextPid = seg.entry.startPage;
+            header.nextPid = seg.entry.pageId;
             header.numEntries = 0;
             header.startOffset = 0;
-            seg.entry.flags |= NEW;
+            seg.flags |= NEW;
         }
     }
 
     void flushPage(Segment& seg) {
-        auto it = segments.find(seg.entry.segment);
+        auto it = segments.find(seg.entry.fileSegment);
 
         if (it == segments.end()) {
             //dummy file got in, PANIC!
@@ -74,7 +74,7 @@ public:
 
         //write the new data
         if (pwrite(it->second, seg.data, PAGE_SIZE,
-                   seg.entry.startPage * (PAGE_SIZE)) == -1) {
+                   seg.entry.pageId * (PAGE_SIZE)) == -1) {
             std::cerr << "cannot write page data: " << strerror(errno)
                       << std::endl;
         }

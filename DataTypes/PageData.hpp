@@ -16,60 +16,56 @@ enum EntryFlags : uint16_t {
 
 struct Entry_t {
     Entry_t()
-            : segment(0), startPage(0), flags(INVALID) {
+            : fileSegment(0), pageId(0) {
 
     }
 
     Entry_t(const Entry_t &other)
-            : segment(other.segment), startPage(other.startPage), flags(other.flags.load()) {
+            : fileSegment(other.fileSegment), pageId(other.pageId) {
     }
 
     Entry_t &operator=(const Entry_t &other) {
 
-        segment = other.segment;
-        startPage = other.startPage;
-        flags.store(other.flags.load());
+        fileSegment = other.fileSegment;
+        pageId = other.pageId;
     }
 
     Entry_t(Entry_t &&other)
-            : segment(other.segment), startPage(other.startPage), flags(other.flags.load()) {
+            : fileSegment(other.fileSegment), pageId(other.pageId) {
         other.invalidate();
     }
 
 
     Entry_t &operator=(Entry_t &&other) {
-        segment = other.segment;
-        startPage = other.startPage;
-        flags.store(other.flags.load());
+        fileSegment = other.fileSegment;
+        pageId = other.pageId;
         other.invalidate();
     }
 
     bool operator==(const Entry_t &other) const {
-        return segment == other.segment && startPage == other.startPage;
+        return fileSegment == other.fileSegment && pageId == other.pageId;
     }
 
     bool operator!=(const Entry_t &other) const {
-        return segment != other.segment && startPage != other.startPage;
+        return fileSegment != other.fileSegment && pageId != other.pageId;
     }
 
 
-    uint16_t segment;
-    uint64_t startPage;
-    std::atomic<uint16_t> flags;
+    uint16_t fileSegment;
+    uint64_t pageId;
 
 private:
     void invalidate() {
-        segment = 0;
-        startPage = 0;
-        flags = INVALID;
+        fileSegment = 0;
+        pageId = 0;
     }
 };
 
 struct EntryHasher {
     std::size_t operator()(const Entry_t &e) const {
         std::size_t seed = 0;
-        boost::hash_combine(seed, e.segment);
-        boost::hash_combine(seed, e.startPage);
+        boost::hash_combine(seed, e.fileSegment);
+        boost::hash_combine(seed, e.pageId);
         return seed;
     }
 };
@@ -93,11 +89,12 @@ struct Segment {
 
     Entry_t entry;
     boost::shared_mutex mutex;
+    uint16_t flags;
     void *data;
 };
 
 struct PageHeader {
     uint64_t nextPid;
-    int16_t numEntries;
+    uint16_t numEntries;
     uint16_t startOffset;
 };

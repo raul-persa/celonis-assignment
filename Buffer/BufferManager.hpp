@@ -94,23 +94,24 @@ public:
                 //write page to disk if dirty
                 if(io.exists(entry) || createSegment) {
                     //page exists or we need to create it
-                    if (seg->entry.flags & DIRTY)
+                    if (seg->flags & DIRTY)
                         io.flushPage(*seg);
                     // overwrite entry with the new entry
                     seg->entry = entry;
                     io.load(*seg);
                     //loading is done, we can free the segment lock
                     seg->mutex.unlock();
+
+                    segmentLookupMutex.lock();
+                    loadingSegments.erase(seg->entry);
+                    segmentLookup.insert(std::make_pair(seg->entry, victimNum));
+                    segmentLookupMutex.unlock();
                 }
                 else {
-                    //no need to create the page
+                    //page would be brand new and we don't have to create it, just unlock and return dummy
+                    seg->mutex.unlock();
                     seg = &dummySegment;
                 }
-
-                segmentLookupMutex.lock();
-                loadingSegments.erase(seg->entry);
-                segmentLookup.insert(std::make_pair(seg->entry, victimNum));
-                segmentLookupMutex.unlock();
 
                 return *seg;
             }
@@ -118,8 +119,6 @@ public:
     }
 
     void unpinPage(Segment& seg, bool exclusive){
-        Segment segment = const_cast<Segment&>(seg);
-
         if(exclusive)
         {
             seg.mutex.unlock();
