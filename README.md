@@ -1,4 +1,5 @@
 # celonis-assignment
+[**presentation**](https://docs.google.com/presentation/d/1d-PVI2-qrn1iCgPpd78NN5Z-pNJhS7gDiPtk-ccnI50/edit#slide=id.g26bc880654_0_1183)
 
 A (as of yet still under development) key-value store with Multithreading and multi-client support.
 
